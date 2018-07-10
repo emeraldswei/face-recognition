@@ -58,7 +58,7 @@ for (subdirs, dirs, files) in os.walk(datasets):
 
 # OpenCV trains a model from the images
 # NOTE FOR OpenCV2: remove '.face'
-model = cv2.face.LBPHFaceRecognizer_create()
+model = cv2.face.FisherFaceRecognizer_create()
 model.train(images, labels)
 
 # Part 2: Use fisherRecognizer on camera stream
@@ -71,9 +71,8 @@ while True:
     faces = faceCascade.detectMultiScale(
         gray,
         scaleFactor=1.1,
-        minNeighbors=4,
-        minSize=(50, 50),
-        flags=0
+        minNeighbors=5,
+        minSize=(30, 30)
     )
 
     for (x,y,w,h) in faces:
@@ -97,13 +96,13 @@ while True:
      
                 # The mustache should be three times the width of the nose
                 mustacheWidth =  3 * nw
-                mustacheHeight = mustacheWidth * origMustacheHeight / origMustacheWidth
+                mustacheHeight = mustacheWidth * origMustacheHeight // origMustacheWidth
      
                 # Center the mustache on the bottom of the nose
-                x1 = nx - (mustacheWidth/4)
-                x2 = nx + nw + (mustacheWidth/4)
-                y1 = ny + nh - (mustacheHeight/2)
-                y2 = ny + nh + (mustacheHeight/2)
+                x1 = nx - (mustacheWidth//4)
+                x2 = nx + nw + (mustacheWidth//4)
+                y1 = ny + nh - (mustacheHeight//2)
+                y2 = ny + nh + (mustacheHeight//2)
      
                 # Check for clipping
                 if x1 < 0:
@@ -140,26 +139,9 @@ while True:
      
                 # place the joined image, saved to dst back over the original image
                 roi_color[y1:y2, x1:x2] = dst
-     
-
             cv2.putText(im,'%s - %.0f' % (names[prediction[0]],prediction[1]),(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 255, 255))
-            crop_img = im[y:y+h, x:x+w]
-            cv2.imshow("cropped", crop_img)
-
-            frame_im = cv2.cvtColor(crop_img, cv2.COLOR_BGR2RGB)
-            pil_im = Image.fromarray(frame_im)
-            stream = StringIO()
-            pil_im.save(stream, format="JPEG")
-            stream.seek(0)
-            img_for_post = stream.read()    
-            files = {'image': img_for_post}
-            response = requests.post(
-                url='/api/path-to-your-endpoint/',
-                files=files
-            )
-
-    	else:
-    	  cv2.putText(im,'not recognized',(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 0, 0))
+        else:
+            cv2.putText(im,'not recognized',(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 0, 0))
 
     cv2.imshow('OpenCV', im)
 
