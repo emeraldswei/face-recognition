@@ -2,40 +2,26 @@
 import cv2, sys, numpy, os
 from PIL import Image
 from six import StringIO
-import requests
+import requests, uuid
 
 size = 4
-
-# location of OpenCV Haar Cascade Classifiers:
-
-
-# xml files describing our haar cascade classifiers
 faceCascadeFilePath = "haarcascade_frontalface_default.xml"
 noseCascadeFilePath = "haarcascade_mcs_nose.xml"
- 
+datasets = 'datasets'
+identifier = ''
+
 # build our cv2 Cascade Classifiers
 faceCascade = cv2.CascadeClassifier(faceCascadeFilePath)
 noseCascade = cv2.CascadeClassifier(noseCascadeFilePath)
  
-#-----------------------------------------------------------------------------
-#       Load and configure mustache (.png with alpha transparency)
-#-----------------------------------------------------------------------------
- 
-# Load our overlay image: mustache.png
+webcam = cv2.VideoCapture(0)
+
 imgMustache = cv2.imread('mustache.png',-1)
- 
-# Create the mask for the mustache
 orig_mask = imgMustache[:,:,3]
- 
-# Create the inverted mask for the mustache
 orig_mask_inv = cv2.bitwise_not(orig_mask)
- 
-# Convert mustache image to BGR
-# and save the original image size (used later when re-sizing the image)
+
 imgMustache = imgMustache[:,:,0:3]
 origMustacheHeight, origMustacheWidth = imgMustache.shape[:2]
-
-datasets = 'datasets'
 
 # Part 1: Create fisherRecognizer
 print('Training...')
@@ -62,8 +48,6 @@ model = cv2.face.FisherFaceRecognizer_create()
 model.train(images, labels)
 
 # Part 2: Use fisherRecognizer on camera stream
-
-webcam = cv2.VideoCapture(0)
 
 while True:
     (_, im) = webcam.read()
@@ -140,10 +124,50 @@ while True:
                 # place the joined image, saved to dst back over the original image
                 roi_color[y1:y2, x1:x2] = dst
             cv2.putText(im,'%s - %.0f' % (names[prediction[0]],prediction[1]),(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 255, 255))
+            identifier = names[prediction[0]]
+
         else:
-            cv2.putText(im,'not recognized',(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 0, 0))
+            identifierNum = uuid.uuid4()
+            identifier = str(identifierNum)
+
+            cv2.putText(im, identifier,(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 0, 0))
+
+        # add new image with the new identifier
+        path = os.path.join(datasets, identifier)
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        (width, height) = (130, 100)
+
+        cv2.rectangle(im,(x,y),(x+w,y+h),(255,0,0),2)
+        face = gray[y:y + h, x:x + w]
+        face_resize = cv2.resize(face, (width, height))
+
+        imageID = uuid.uuid1()
+        cv2.imwrite('%s/%s.png' % (path,imageID), face_resize)
+    
+        # retrain the model
+        (newImages, newLabels, newNames, id) = ([], [], {}, 0)
+        for (subdirs, dirs, files) in os.walk(datasets):
+            for subdir in dirs:
+                newNames[id] = subdir
+                subjectpath = os.path.join(datasets, subdir)
+                for filename in os.listdir(subjectpath):
+                    path = subjectpath + '/' + filename
+                    label = id
+                    newImages.append(cv2.imread(path, 0))
+                    newLabels.append(int(label))
+                id += 1
+        (width, height) = (130, 100)
+
+        # Create a Numpy array from the two lists above
+        (names, labels) = [numpy.array(lis) for lis in [newImages, newLabels]]
+
+        model = cv2.face.FisherFaceRecognizer_create()
+        model.train(names, labels)
 
     cv2.imshow('OpenCV', im)
+
+
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
