@@ -9,6 +9,7 @@ faceCascadeFilePath = "haarcascade_frontalface_default.xml"
 noseCascadeFilePath = "haarcascade_mcs_nose.xml"
 datasets = 'datasets'
 identifier = ''
+id = 0
 
 # build our cv2 Cascade Classifiers
 faceCascade = cv2.CascadeClassifier(faceCascadeFilePath)
@@ -44,7 +45,7 @@ for (subdirs, dirs, files) in os.walk(datasets):
 
 # OpenCV trains a model from the images
 # NOTE FOR OpenCV2: remove '.face'
-model = cv2.face.FisherFaceRecognizer_create()
+model = cv2.face.LBPHFaceRecognizer_create()
 model.train(images, labels)
 
 # Part 2: Use fisherRecognizer on camera stream
@@ -126,13 +127,23 @@ while True:
             cv2.putText(im,'%s - %.0f' % (names[prediction[0]],prediction[1]),(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 255, 255))
             identifier = names[prediction[0]]
 
+
+
         else:
             identifierNum = uuid.uuid4()
             identifier = str(identifierNum)
 
             cv2.putText(im, identifier,(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 0, 0))
 
-        # add new image with the new identifier
+            newImages[0] = im
+            newLabels[0] = id
+            id+=1
+
+            #retrain the model with the new image and label
+            (newImages, newLabels) = [numpy.array(lis) for lis in [newImages, newLabels]]
+            model.update(newImages, newLabels)
+
+        # add new image with the new identifier to the directory of datasets
         path = os.path.join(datasets, identifier)
         if not os.path.isdir(path):
             os.mkdir(path)
@@ -144,26 +155,7 @@ while True:
 
         imageID = uuid.uuid1()
         cv2.imwrite('%s/%s.png' % (path,imageID), face_resize)
-    
-        # retrain the model
-        (newImages, newLabels, newNames, id) = ([], [], {}, 0)
-        for (subdirs, dirs, files) in os.walk(datasets):
-            for subdir in dirs:
-                newNames[id] = subdir
-                subjectpath = os.path.join(datasets, subdir)
-                for filename in os.listdir(subjectpath):
-                    path = subjectpath + '/' + filename
-                    label = id
-                    newImages.append(cv2.imread(path, 0))
-                    newLabels.append(int(label))
-                id += 1
-        (width, height) = (130, 100)
 
-        # Create a Numpy array from the two lists above
-        (names, labels) = [numpy.array(lis) for lis in [newImages, newLabels]]
-
-        model = cv2.face.FisherFaceRecognizer_create()
-        model.train(names, labels)
 
     cv2.imshow('OpenCV', im)
 
