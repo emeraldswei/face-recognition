@@ -4,12 +4,9 @@ from PIL import Image
 from six import StringIO
 import requests, uuid
 
-size = 4
 faceCascadeFilePath = "haarcascade_frontalface_default.xml"
 noseCascadeFilePath = "haarcascade_mcs_nose.xml"
 datasets = 'datasets'
-identifier = ''
-id = 0
 
 # build our cv2 Cascade Classifiers
 faceCascade = cv2.CascadeClassifier(faceCascadeFilePath)
@@ -45,7 +42,7 @@ for (subdirs, dirs, files) in os.walk(datasets):
 
 # OpenCV trains a model from the images
 # NOTE FOR OpenCV2: remove '.face'
-model = cv2.face.LBPHFaceRecognizer_create()
+model = cv2.face.FisherFaceRecognizer_create()
 model.train(images, labels)
 
 # Part 2: Use fisherRecognizer on camera stream
@@ -73,7 +70,12 @@ while True:
             roi_color = im[y:y+h, x:x+w]
  
             # Detect a nose within the region bounded by each face (the ROI)
-            nose = noseCascade.detectMultiScale(roi_gray)
+            nose = noseCascade.detectMultiScale(
+                roi_gray,
+                scaleFactor=1.1,
+                minNeighbors=8,
+                minSize=(30,30)
+            )
  
             for (nx,ny,nw,nh) in nose:
                 # Un-comment the next line for debug (draw box around the nose)
@@ -124,42 +126,39 @@ while True:
      
                 # place the joined image, saved to dst back over the original image
                 roi_color[y1:y2, x1:x2] = dst
+
             cv2.putText(im,'%s - %.0f' % (names[prediction[0]],prediction[1]),(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 255, 255))
-            identifier = names[prediction[0]]
-
-
 
         else:
-            identifierNum = uuid.uuid4()
-            identifier = str(identifierNum)
+
+            print("New face! Assigning identifier...")
+            identifier = str(uuid.uuid4())
+            print(identifier)
+
+            # add new images with the new identifier to the directory of datasets
+            path = os.path.join(datasets, identifier)
+            if not os.path.isdir(path):
+                os.mkdir(path)
+
+            count = 1
+            while count < 51: 
+                (_, im) = webcam.read()
+                gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+                faces = faceCascade.detectMultiScale(gray, 1.3, 4)
+                for (x,y,w,h) in faces:
+                    cv2.rectangle(im,(x,y),(x+w,y+h),(255,0,0),2)
+                    face = gray[y:y + h, x:x + w]
+                    face_resize = cv2.resize(face, (width, height))
+                    imageID = uuid.uuid1()
+                    cv2.imwrite('%s/%s.png' % (path,imageID), face_resize)
+                count += 1
+            break
+
 
             cv2.putText(im, identifier,(x-10, y-10), cv2.FONT_HERSHEY_PLAIN,1,(255, 0, 0))
 
-            newImages[0] = im
-            newLabels[0] = id
-            id+=1
-
-            #retrain the model with the new image and label
-            (newImages, newLabels) = [numpy.array(lis) for lis in [newImages, newLabels]]
-            model.update(newImages, newLabels)
-
-        # add new image with the new identifier to the directory of datasets
-        path = os.path.join(datasets, identifier)
-        if not os.path.isdir(path):
-            os.mkdir(path)
-        (width, height) = (130, 100)
-
-        cv2.rectangle(im,(x,y),(x+w,y+h),(255,0,0),2)
-        face = gray[y:y + h, x:x + w]
-        face_resize = cv2.resize(face, (width, height))
-
-        imageID = uuid.uuid1()
-        cv2.imwrite('%s/%s.png' % (path,imageID), face_resize)
-
 
     cv2.imshow('OpenCV', im)
-
-
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
