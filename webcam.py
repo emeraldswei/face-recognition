@@ -62,16 +62,6 @@ while True:
     src = cv2.LoadImage("img.jpg", cv2.CV_LOAD_IMAGE_COLOR)
     src0 = cv2.LoadImage("img0.jpg", cv2.CV_LOAD_IMAGE_COLOR)
 
-
-    sc0= cv2.CompareHist(src, src0, cv2.CV_COMP_BHATTACHARYYA)
-    sc1= cv2.CompareHist(src, src1, cv2.CV_COMP_BHATTACHARYYA)
-
-
-    if sc0==0.0:
-            cv2.putText(image, 'Raghava', (x, y), cv2.FONT_ITALIC, 1, (200,255,155),2)
-    if sc1==0.0:
-            cv2.putText(image, 'Abdul kalam Sir', (x, y), cv2.FONT_ITALIC, 1, (200,255,155),2)
-
     # Display the resulting frame
     cv2.imshow('Face found', image)
 
